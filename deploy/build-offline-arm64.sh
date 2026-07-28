@@ -26,9 +26,19 @@ for base in "golang:1.24.3-alpine" "alpine:3.21"; do
     && docker tag "docker.m.daocloud.io/library/${base}" "${base}" \
     || echo "    (跳过 base 预拉: ${base})"
 done
-docker build -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
-docker build -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
-docker build -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
+# 智能选择：本机原生用 docker build（快），跨架构用 buildx + QEMU（可交叉构建）
+LOCAL_ARCH="$(uname -m)"
+case "$LOCAL_ARCH" in x86_64) LOCAL_ARCH="amd64";; arm64|aarch64) LOCAL_ARCH="arm64";; esac
+if [ "${ARCH}" = "${LOCAL_ARCH}" ]; then
+  echo "    本机原生构建（${ARCH}）→ docker build"
+  BUILD_CMD=(docker build)
+else
+  echo "    ⚠️ 跨架构构建（本机 ${LOCAL_ARCH} → 目标 ${ARCH}），使用 buildx + QEMU 模拟，速度较慢"
+  BUILD_CMD=(docker buildx build --platform "${PLATFORM}" --load)
+fi
+"${BUILD_CMD[@]}" -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
+"${BUILD_CMD[@]}" -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
+"${BUILD_CMD[@]}" -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
 # 校验镜像已生成
 for img in panda-wiki-api:local panda-wiki-consumer:local panda-wiki-admin:local; do
   docker image inspect "$img" >/dev/null 2>&1 || { echo "❌ 镜像构建失败: $img"; exit 1; }
