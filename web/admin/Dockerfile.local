@@ -1,0 +1,5 @@
+# 本地源码构建的管理台镜像。
+# 基于官方 nginx 镜像（含 nginx.conf / server.conf / ssl 配置），仅替换前端构建产物。
+# 使用前需先在 web/admin 下执行 `pnpm build` 生成 dist 目录。
+FROM chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-nginx:v3.86.1
+COPY dist /opt/frontend/dist

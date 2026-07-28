@@ -28,7 +28,9 @@ go.work.sum
 
 .vscode
 
-deploy
+# 本地部署编排允许提交，仅忽略运行数据与含密码的 .env
+deploy/data/
+deploy/.env
 local
 
 .idea

@@ -1,0 +1,238 @@
+# PandaWiki 完整本地容器编排（开源版 + 本地源码构建 api/consumer）
+# 架构参照官方部署：固定子网 169.254.15.0/24，caddy 统一入口，raglite RAG，qdrant 向量库
+
+services:
+  # ============ 统一入口：caddy（动态站点路由，host 网络）============
+  caddy:
+    container_name: panda-wiki-caddy
+    restart: always
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-caddy:2.10-alpine
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./data/caddy/caddy_config:/config
+      - ./data/caddy/caddy_data:/data
+      - ./data/caddy/run:/var/run/caddy
+    environment:
+      - CADDY_ADMIN=unix//var/run/caddy/caddy-admin.sock
+    network_mode: host
+
+  # ============ 管理后台：nginx (admin SPA + 反代 api) ============
+  # 本地源码构建（含你的前端改动）；构建前需在 web/admin 执行 `pnpm build` 生成 dist
+  nginx:
+    container_name: panda-wiki-nginx
+    depends_on:
+      - api
+    restart: always
+    build:
+      context: ../web/admin
+      dockerfile: Dockerfile.local
+    image: panda-wiki-admin:local
+    ports:
+      - ${ADMIN_PORT}:8080
+    volumes:
+      - ./data/nginx/ssl:/etc/nginx/ssl
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.111"
+
+  # ============ 用户站：Next.js ============
+  app:
+    container_name: panda-wiki-app
+    restart: always
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-app:v3.86.1
+    environment:
+      - TARGET=http://${SUBNET_PREFIX:-169.254.15}.2:8000
+      - STATIC_FILE_TARGET=http://${SUBNET_PREFIX:-169.254.15}.12:9000
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.112"
+
+  # ============ 后端 API（本地源码构建）============
+  api:
+    container_name: panda-wiki-api
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.api
+    image: panda-wiki-api:local
+    depends_on:
+      - postgres
+      - nats
+      - caddy
+      - raglite
+      - minio
+      - redis
+    restart: always
+    volumes:
+      - ./data/caddy/run:/app/run
+      - ./data/nginx/ssl:/app/etc/nginx/ssl
+      - ./data/conf/api:/data
+    environment:
+      - NATS_PASSWORD=${NATS_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SUBNET_PREFIX=${SUBNET_PREFIX}
+      - SENTRY_ENABLED=false
+      - LOG_LEVEL=0
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.2"
+
+  # ============ 后端 Consumer（本地源码构建）============
+  consumer:
+    container_name: panda-wiki-consumer
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.consumer
+    image: panda-wiki-consumer:local
+    depends_on:
+      - nats
+      - api
+      - raglite
+      - postgres
+      - redis
+      - minio
+    restart: always
+    environment:
+      - NATS_PASSWORD=${NATS_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - SUBNET_PREFIX=${SUBNET_PREFIX}
+      - SENTRY_ENABLED=false
+      - LOG_LEVEL=0
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.3"
+
+  # ============ 基础设施 ============
+  postgres:
+    container_name: panda-wiki-postgres
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/postgres-zhparser:17.6-bookworm
+    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "panda-wiki", "-d", "panda-wiki"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      - POSTGRES_USER=panda-wiki
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=panda-wiki
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.10"
+
+  redis:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-redis:7.4.2-alpine
+    container_name: panda-wiki-redis
+    restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes", "--appendfilename", "appendonly.aof", "--save", "900 1", "--save", "300 10", "--save", "60 10000"]
+    volumes:
+      - ./data/redis:/data
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.11"
+
+  minio:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-minio:RELEASE.2025-04-22T22-12-26Z-cpuv1
+    container_name: panda-wiki-minio
+    restart: always
+    command: ["minio", "server", "/data", "--console-address", ":9001"]
+    volumes:
+      - ./data/minio:/data
+    environment:
+      - MINIO_ACCESS_KEY=s3panda-wiki
+      - MINIO_SECRET_KEY=${S3_SECRET_KEY}
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.12"
+
+  nats:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-nats:2.11.3-alpine
+    container_name: panda-wiki-nats
+    restart: always
+    command: ["nats-server", "-c", "/etc/nats/nats.conf", "--user", "panda-wiki", "--pass", "${NATS_PASSWORD}"]
+    volumes:
+      - ./data/nats:/data
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.13"
+
+  qdrant:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/panda-wiki-qdrant:v1.14.1
+    container_name: panda-wiki-qdrant
+    restart: always
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.14"
+
+  # ============ RAG 服务（raglite）============
+  raglite:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/raglite:v2.17.0
+    container_name: panda-wiki-raglite
+    restart: always
+    volumes:
+      - ./data/raglite:/data
+    environment:
+      - GIN_MODE=release
+      - DATABASE_POSTGRESQL_HOST=panda-wiki-postgres
+      - DATABASE_POSTGRESQL_USER=panda-wiki
+      - DATABASE_POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_QDRANT_HOST=panda-wiki-qdrant
+      - DATABASE_QDRANT_API_KEY=${QDRANT_API_KEY}
+      - STORAGE_MINIO_ENDPOINT=panda-wiki-minio:9000
+      - STORAGE_MINIO_ACCESS_KEY_ID=s3panda-wiki
+      - STORAGE_MINIO_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+      - NATS_URL=nats://panda-wiki-nats:4222
+      - NATS_USER=panda-wiki
+      - NATS_PASSWORD=${NATS_PASSWORD}
+      - EMBEDDER_RPM=800
+      - LLM_RPM=50
+    depends_on:
+      - postgres
+      - minio
+      - qdrant
+      - nats
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.18"
+
+  # ============ 文档爬虫（anydoc，可选：URL/sitemap 导入文档）============
+  # 默认不启动（本地缺镜像）。需要时：docker compose --profile crawler up -d crawler
+  crawler:
+    image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/anydoc:v0.9.11
+    container_name: panda-wiki-crawler
+    restart: always
+    init: true
+    profiles: ["crawler"]
+    environment:
+      - GLOG_GLOBAL_LEVEL=info
+      - NAMESPACE=anydoc
+      - MQ_NATS_URL=nats://panda-wiki-nats:4222
+      - MQ_NATS_USER=panda-wiki
+      - MQ_NATS_PASSWORD=${NATS_PASSWORD}
+      - OSS_MINIO_ACCESS_KEY=s3panda-wiki
+      - OSS_MINIO_SECRET_KEY=${S3_SECRET_KEY}
+      - OSS_MINIO_ENDPOINT=panda-wiki-minio:9000
+    networks:
+      panda-wiki:
+        ipv4_address: "${SUBNET_PREFIX:-169.254.15}.17"
+
+networks:
+  panda-wiki:
+    ipam:
+      driver: default
+      config:
+        - subnet: "${SUBNET_PREFIX:-169.254.15}.0/24"
