@@ -31,7 +31,7 @@ go.work.sum
 # 本地部署编排允许提交，仅忽略运行数据、含密码的 .env 与离线包产物
 deploy/data/
 deploy/.env
-deploy/pandawiki-offline-*.tar.gz
+deploy/pandawiki-*.tar.gz
 deploy/images-*.tar
 local
 
