@@ -234,26 +234,34 @@ const AuthTypeModal = ({
             <Box>
               <Stack direction={'row'} alignItems={'center'}>
                 <Box sx={{ width: 120, flexShrink: 0 }}>授权时间</Box>
-                <Box>
-                  {dayjs.unix(license.started_at!).format('YYYY-MM-DD')}
-                </Box>
-                <Box sx={{ mx: 1 }}>~</Box>
-                <Box>
-                  {dayjs.unix(license.expired_at!).format('YYYY-MM-DD')}
-                </Box>
+                {license.expired_at && license.expired_at > 0 ? (
+                  <>
+                    <Box>
+                      {dayjs.unix(license.started_at!).format('YYYY-MM-DD')}
+                    </Box>
+                    <Box sx={{ mx: 1 }}>~</Box>
+                    <Box>
+                      {dayjs.unix(license.expired_at!).format('YYYY-MM-DD')}
+                    </Box>
+                  </>
+                ) : (
+                  <Box>永久有效</Box>
+                )}
               </Stack>
-              {dayjs.unix(license.expired_at!).diff(dayjs(), 'day') < 0 && (
-                <Box
-                  sx={{
-                    color: 'error.main',
-                    ml: '120px',
-                    fontSize: 13,
-                    mt: -1,
-                  }}
-                >
-                  授权已到期
-                </Box>
-              )}
+              {license.expired_at &&
+                license.expired_at > 0 &&
+                dayjs.unix(license.expired_at!).diff(dayjs(), 'day') < 0 && (
+                  <Box
+                    sx={{
+                      color: 'error.main',
+                      ml: '120px',
+                      fontSize: 13,
+                      mt: -1,
+                    }}
+                  >
+                    授权已到期
+                  </Box>
+                )}
             </Box>
           )}
         </Stack>

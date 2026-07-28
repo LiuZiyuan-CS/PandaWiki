@@ -271,15 +271,7 @@ func (r *AuthRepo) GetAuths(ctx context.Context, kbID string, sourceType consts.
 
 func (r *AuthRepo) GetOrCreateAuth(ctx context.Context, auth *domain.Auth, sourceType consts.SourceType) (*domain.Auth, error) {
 
-	licenseEdition, _ := ctx.Value(consts.ContextKeyEdition).(consts.LicenseEdition)
-
-	if licenseEdition < consts.LicenseEditionEnterprise {
-		rdsKey := fmt.Sprintf("GetOrCreateAuth:%s", auth.KBID)
-		if !r.cache.AcquireLock(ctx, rdsKey) {
-			return nil, errors.New("rate limit exceeded, please try again later")
-		}
-		defer r.cache.ReleaseLock(ctx, rdsKey)
-	}
+	// 开发版：放开 SSO 并发限流（原 < Enterprise 有 Redis 互斥锁，高频创建同一 auth 会被拒）。
 
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing domain.Auth
