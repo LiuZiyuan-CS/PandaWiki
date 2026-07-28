@@ -35,16 +35,21 @@ echo "[2/5] 构建前端管理台..."
 ( cd ../web && pnpm install )
 ( cd ../web/admin && pnpm build )
 
-echo "[3/5] 预拉取 base 镜像 + 构建本地镜像（${PLATFORM}）..."
+echo "[3/5] 预拉取 base 镜像 + 构建本地镜像（本机原生 ${PLATFORM}）..."
 # 从镜像加速拉取 Dockerfile 依赖的 base 镜像(golang/alpine)，避免 docker.io 访问失败
 for base in "golang:1.24.3-alpine" "alpine:3.21"; do
   docker pull --platform "${PLATFORM}" "docker.m.daocloud.io/library/${base}" 2>/dev/null \
     && docker tag "docker.m.daocloud.io/library/${base}" "${base}" \
     || echo "    (跳过 base 预拉: ${base})"
 done
-docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
-docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
-docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
+# 用原生 docker build（直接 load 到本地 docker，避免某些服务器上 buildx --load 的兼容问题）
+docker build -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
+docker build -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
+docker build -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
+# 校验镜像已生成
+for img in panda-wiki-api:local panda-wiki-consumer:local panda-wiki-admin:local; do
+  docker image inspect "$img" >/dev/null 2>&1 || { echo "❌ 镜像构建失败: $img"; exit 1; }
+done
 
 echo "[4/5] 导出本地修改的镜像（仅 3 个）..."
 CUSTOM_IMAGES="panda-wiki-api:local panda-wiki-consumer:local panda-wiki-admin:local"
