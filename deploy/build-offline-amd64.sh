@@ -10,6 +10,9 @@ PLATFORM="linux/$ARCH"
 echo "[1/6] 检查依赖..."
 command -v docker >/dev/null || { echo "❌ 请先安装 Docker"; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "❌ 需要 docker compose v2"; exit 1; }
+command -v node >/dev/null || { echo "❌ 请先安装 Node.js 18+"; exit 1; }
+node_major=$(node -v 2>/dev/null | sed 's/v//' | cut -d. -f1)
+[ "${node_major:-0}" -ge 18 ] || { echo "❌ Node 版本过低 ($(node -v))，pnpm/Vite 需要 Node 18+，请升级: https://nodejs.org/"; exit 1; }
 command -v pnpm >/dev/null || { echo "❌ 请先安装 pnpm: npm i -g pnpm"; exit 1; }
 
 echo "[2/6] 构建前端管理台..."
