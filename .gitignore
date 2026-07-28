@@ -28,9 +28,11 @@ go.work.sum
 
 .vscode
 
-# 本地部署编排允许提交，仅忽略运行数据与含密码的 .env
+# 本地部署编排允许提交，仅忽略运行数据、含密码的 .env 与离线包产物
 deploy/data/
 deploy/.env
+deploy/pandawiki-offline-*.tar.gz
+deploy/images-*.tar
 local
 
 .idea

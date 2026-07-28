@@ -16,14 +16,14 @@ echo "[2/6] 构建前端管理台..."
 ( cd ../web && pnpm install )
 ( cd ../web/admin && pnpm build )
 
-echo "[3/6] 构建本地源码镜像（$PLATFORM）..."
-docker buildx build --platform "$PLATFORM" --load -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
-docker buildx build --platform "$PLATFORM" --load -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
-docker buildx build --platform "$PLATFORM" --load -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
+echo "[3/6] 构建本地源码镜像（${PLATFORM}）..."
+docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
+docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
+docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
 
-echo "[4/6] 拉取官方依赖镜像（$PLATFORM）..."
+echo "[4/6] 拉取官方依赖镜像（${PLATFORM}）..."
 for img in $(docker compose config --images | sort -u); do
-  docker pull --platform "$PLATFORM" "$img" 2>/dev/null || echo "    跳过(本地构建): $img"
+  docker pull --platform "${PLATFORM}" "$img" 2>/dev/null || echo "    跳过(本地构建): $img"
 done
 
 echo "[5/6] 导出全部镜像..."
