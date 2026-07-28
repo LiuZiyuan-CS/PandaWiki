@@ -209,14 +209,15 @@ services:
       panda-wiki:
         ipv4_address: "${SUBNET_PREFIX:-169.254.15}.18"
 
-  # ============ 文档爬虫（anydoc，可选：URL/sitemap 导入文档）============
-  # 默认不启动（本地缺镜像）。需要时：docker compose --profile crawler up -d crawler
+  # ============ 文档解析（anydoc，解析 docx/pdf 等上传文件 + URL/sitemap 导入）============
   crawler:
     image: chaitin-registry.cn-hangzhou.cr.aliyuncs.com/chaitin/anydoc:v0.9.11
     container_name: panda-wiki-crawler
     restart: always
     init: true
-    profiles: ["crawler"]
+    depends_on:
+      - nats
+      - minio
     environment:
       - GLOG_GLOBAL_LEVEL=info
       - NAMESPACE=anydoc
