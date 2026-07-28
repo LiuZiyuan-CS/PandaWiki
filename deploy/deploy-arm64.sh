@@ -21,7 +21,7 @@ fi
 
 echo "[3/5] 构建前端管理台..."
 ( cd ../web && pnpm install )
-( export NODE_OPTIONS="--max-old-space-size=8192"; cd ../web/admin && pnpm build )
+( export NODE_OPTIONS="--max-old-space-size=12288"; cd ../web/admin && pnpm build )
 
 echo "[4/5] 构建后端镜像（$PLATFORM）..."
 docker buildx build --platform "$PLATFORM" --load \

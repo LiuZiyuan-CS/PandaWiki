@@ -33,7 +33,7 @@ echo "    架构: ${ARCH} (${PLATFORM})"
 
 echo "[2/5] 构建前端管理台..."
 ( cd ../web && pnpm install )
-( export NODE_OPTIONS="--max-old-space-size=8192"; cd ../web/admin && pnpm build )
+( export NODE_OPTIONS="--max-old-space-size=12288"; cd ../web/admin && pnpm build )
 
 echo "[3/5] 预拉取 base 镜像 + 构建本地镜像（${PLATFORM}）..."
 # 从镜像加速拉取 Dockerfile 依赖的 base 镜像(golang/alpine)，避免 docker.io 访问失败
