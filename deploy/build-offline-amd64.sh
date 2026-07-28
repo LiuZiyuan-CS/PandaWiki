@@ -17,7 +17,7 @@ command -v pnpm >/dev/null || { echo "❌ 请先安装 pnpm: npm i -g pnpm"; exi
 
 echo "[2/6] 构建前端管理台..."
 ( cd ../web && pnpm install )
-( export NODE_OPTIONS="--max-old-space-size=6144"; cd ../web/admin && pnpm build )
+( export NODE_OPTIONS="--max-old-space-size=8192"; cd ../web/admin && pnpm build )
 
 echo "[3/6] 预拉取 base 镜像 + 构建本地源码镜像（${PLATFORM}）..."
 # 从镜像加速拉取 Dockerfile 依赖的 base 镜像(golang/alpine)，避免 docker.io 访问失败
