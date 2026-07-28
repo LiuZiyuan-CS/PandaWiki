@@ -2,123 +2,101 @@
   <img src="/images/banner.png" width="400" />
 </p>
 
-<p align="center">
-  <a target="_blank" href="https://ly.safepoint.cloud/Br48PoX">📖 官方网站</a> &nbsp; | &nbsp;
-  <a target="_blank" href="/images/wechat.png">🙋‍♂️ 微信交流群</a>
-</p>
+# PandaWiki（二次开发 fork）
 
-## 👋 项目介绍
+基于 [chaitin/PandaWiki](https://github.com/chaitin/PandaWiki) 开源版进行二次开发与本地化部署。PandaWiki 是一款 AI 大模型驱动的**开源知识库搭建系统**，帮助你快速构建智能化的产品文档、技术文档、FAQ、博客系统，提供 AI 创作、AI 问答、AI 搜索等能力。
 
-PandaWiki 是一款 AI 大模型驱动的**开源知识库搭建系统**，帮助你快速构建智能化的 **产品文档、技术文档、FAQ、博客系统**，借助大模型的力量为你提供 **AI 创作、AI 问答、AI 搜索** 等能力。
+## 🔧 与上游的主要差异
 
-<p align="center">
-  <img src="/images/setup.png" width="800" />
-</p>
+> 详细改动见 [CHANGELOG.md](./CHANGELOG.md)
 
-## ⚡️ 界面展示
+- **放开开源版限制**：知识库/管理员/文档数量上限解除，SSO 并发限流解除，统计时间范围全部可用，专业版功能开关全部开启
+- **补全 license 接口**：开源版补 `GET /api/v1/license`，前端不再误报「专业版可用 / 授权已到期」
+- **源文档下载**：上传的 docx/pdf 等原始文件可重新下载（单篇 / 批量 zip / 列表格式徽章）
+- **本地部署**：提供完整的 Docker Compose 编排与一键部署脚本
 
-| PandaWiki 控制台                                 | Wiki 网站前台                                    |
-| ------------------------------------------------ | ------------------------------------------------ |
-| <img src="/images/screenshot-1.png" width=370 /> | <img src="/images/screenshot-2.png" width=370 /> |
-| <img src="/images/screenshot-3.png" width=370 /> | <img src="/images/screenshot-4.png" width=370 /> |
+## 🚀 本地部署
 
-## 🔥 功能与特色
+### 环境要求
 
-- AI 驱动智能化：AI 辅助创作、AI 辅助问答、AI 辅助搜索。
-- 强大的富文本编辑能力：兼容 Markdown 和 HTML，支持导出为 word、pdf、markdown 等多种格式。
-- 轻松与第三方应用进行集成：支持做成网页挂件挂在其他网站上，支持做成钉钉、飞书、企业微信等聊天机器人。
-- 通过第三方来源导入内容：根据网页 URL 导入、通过网站 Sitemap 导入、通过 RSS 订阅、通过离线文件导入等。
+- Docker 20.x+（含 compose v2）。macOS 推荐 [OrbStack](https://orbstack.dev/)
+- Node.js 20+ 与 pnpm（构建前端用）
+- 首次拉取官方依赖镜像需能访问 `chaitin-registry.cn-hangzhou.cr.aliyuncs.com`
 
-## 🚀 上手指南
+### 一键部署
 
-### 安装 PandaWiki
-
-你需要一台支持 Docker 20.x 以上版本的 Linux 系统来安装 PandaWiki。
-
-使用 root 权限登录你的服务器，然后执行以下命令。
+根据你的平台选择脚本：
 
 ```bash
-bash -c "$(curl -fsSLk https://release.baizhi.cloud/panda-wiki/manager.sh)"
+# Apple Silicon (M1/M2/M3)
+bash deploy/deploy-arm64.sh
+
+# x86_64 (Intel mac / Linux 服务器)
+bash deploy/deploy-amd64.sh
 ```
 
-根据命令提示的选项进行安装，命令执行过程将会持续几分钟，请耐心等待。
+脚本会自动：检查依赖 → 生成 `.env` → 构建前端 → 构建后端镜像（本地源码）→ 启动全部服务。
 
-> 关于安装与部署的更多细节请参考 [安装 PandaWiki](https://pandawiki.docs.baizhi.cloud/node/01971602-bb4e-7c90-99df-6d3c38cfd6d5)。
-
-### 登录 PandaWiki
-
-在上一步中，安装命令执行结束后，你的终端会输出以下内容。
+完成后访问：
 
 ```
-SUCCESS  控制台信息:
-SUCCESS    访问地址(内网): http://*.*.*.*:2443
-SUCCESS    访问地址(外网): http://*.*.*.*:2443
-SUCCESS    用户名: admin
-SUCCESS    密码: **********************
+管理后台：https://localhost:2443   （自签证书，浏览器接受风险即可）
+账号：admin
+密码：见 deploy/.env 的 ADMIN_PASSWORD
 ```
 
-使用浏览器打开上述内容中的 “访问地址”，你将看到 PandaWiki 的控制台登录入口，使用上述内容中的 “用户名” 和 “密码” 登录即可。
+### 手动部署
 
-### 配置 AI 模型
+```bash
+cd deploy
+cp .env.example .env          # 按需修改密码
+cd ../web && pnpm install && cd admin && pnpm build   # 构建前端
+cd ../../deploy && docker compose up -d --build       # 构建后端镜像并启动
+```
 
-> PandaWiki 是由 AI 大模型驱动的 Wiki 系统，在未配置大模型的情况下 AI 创作、AI 问答、AI 搜索 等功能无法正常使用。
-> 
-首次登录时会提示需要先配置 AI 模型，可自行选择一键配置或手动配置。
+### 架构
 
-<div align="center">
-  <img src="/images/model-config-1.png" width="800" />
-  <p><em>一键自动配置 AI 模型</em></p>
+```
+caddy(80/443 统一入口) → app(Next.js 用户站) / nginx(admin 管理台)
+api(本地源码) + consumer(本地源码) → postgres-zhparser / redis / nats / minio / qdrant / raglite(RAG)
+```
 
-  <img src="/images/model-config-2.png" width="800" />
-  <p><em>手动自定义配置 AI 模型</em></p>
-</div>
+- 后端 `api` / `consumer` 从仓库源码构建，改代码后 `docker compose up -d --build api consumer` 即可生效
+- 管理台 `nginx` 从本地源码构建，改前端后需重新 `pnpm build` 并 `docker compose up -d --build nginx`
+- 其余依赖服务（postgres/redis/nats/minio/qdrant/raglite/caddy/app）使用官方镜像
 
+## 🤖 配置 AI 模型（首次使用必做）
 
+PandaWiki 是 AI 驱动的，未配置模型时创建知识库 / AI 问答 / 向量化会失败（提示 `no default embedding model available`）。
 
-> 推荐使用 [百智云模型广场](https://baizhi.cloud/) 快速接入 AI 模型，注册即可获赠 5 元的模型使用额度。
-> 关于大模型的更多配置细节请参考 [接入 AI 模型](https://pandawiki.docs.baizhi.cloud/node/01971616-811c-70e1-82d9-706a202b8498)。
+1. 登录管理后台，按提示「配置 AI 模型」
+2. 至少配置 1 个 **embedding** 模型（设为默认）+ 1 个 **LLM**
+3. 推荐使用 [百智云模型广场](https://baizhi.cloud/) 或任意兼容 OpenAI 的 API
 
-### 创建知识库
+## 🛠 常用运维命令
 
-“知识库” 是一组文档的集合，PandaWiki 将会根据知识库中的文档，为不同的知识库分别创建 “Wiki 网站”。
-<img src="/images/createkb.png" width="800" />
+```bash
+cd deploy
+docker compose ps                # 查看服务状态
+docker compose logs -f api       # 跟踪 api 日志
+docker compose restart api       # 重启 api
+docker compose down              # 停止（保留数据）
+docker compose down && rm -rf data  # ⚠️ 停止并清空全部数据
+```
 
-### 💪 开始使用
+## 📁 项目结构
 
-如果你顺利完成了以上步骤，那么恭喜你，属于你的 PandaWiki 搭建成功，你可以：
+```
+backend/   Go 后端（api / consumer / migrate）
+web/admin/ React + Vite 管理后台
+web/app/   Next.js 用户前台
+deploy/    本地 Docker 部署编排与脚本
+```
 
-- 访问 **控制台** 来管理你的知识库并上传文档等待学习成功
-- 访问 **Wiki 网站** 使用知识库并测试AI问答效果
-<img src="/images/AI-QA.png" width="700" />
+## 🙏 致谢
 
-### 💬 遇到问题
-
-如在使用产品过程中遇到问题，可通过以下方式获取帮助：
-- 📘查阅官方文档：[常见问题](https://pandawiki.docs.baizhi.cloud/node/019b4952-4ed3-7514-ba57-c93a8ca13608)，更多内容请参考文档目录。
-- 🤖不想翻文档？试试 [AI 问答](https://pandawiki.docs.baizhi.cloud/node/0197160c-782c-74ad-a4b7-857dae148f84)，快速获取答案。
-- 🤝加入社区：扫码加入下方企业微信群，与更多用户及官方人员交流经验、获得帮助。
-
-
-## 社区交流
-
-欢迎加入我们的微信群进行交流。
-
-<img src="/images/wechat.png" width="300" />
-
-## 🙋‍♂️ 贡献
-
-欢迎提交 [Pull Request](https://github.com/chaitin/PandaWiki/pulls) 或创建 [Issue](https://github.com/chaitin/PandaWiki/issues) 来帮助改进项目。
+- 上游项目：[chaitin/PandaWiki](https://github.com/chaitin/PandaWiki)
 
 ## 📝 许可证
 
-本项目采用 GNU Affero General Public License v3.0 (AGPL-3.0) 许可证。这意味着：
-
-- 你可以自由使用、修改和分发本软件
-- 你必须以相同的许可证开源你的修改
-- 如果你通过网络提供服务，也必须开源你的代码
-- 商业使用需要遵守相同的开源要求
-
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=chaitin/PandaWiki&type=Date)](https://www.star-history.com/#chaitin/PandaWiki&Date)
+继承自上游，采用 [AGPL-3.0](./LICENSE)。
