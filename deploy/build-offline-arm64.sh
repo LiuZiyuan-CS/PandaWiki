@@ -16,7 +16,13 @@ echo "[2/6] 构建前端管理台..."
 ( cd ../web && pnpm install )
 ( cd ../web/admin && pnpm build )
 
-echo "[3/6] 构建本地源码镜像（${PLATFORM}）..."
+echo "[3/6] 预拉取 base 镜像 + 构建本地源码镜像（${PLATFORM}）..."
+# 从镜像加速拉取 Dockerfile 依赖的 base 镜像(golang/alpine)，避免 docker.io 访问失败
+for base in "golang:1.24.3-alpine" "alpine:3.21"; do
+  docker pull --platform "${PLATFORM}" "docker.m.daocloud.io/library/${base}" 2>/dev/null \
+    && docker tag "docker.m.daocloud.io/library/${base}" "${base}" \
+    || echo "    (跳过 base 预拉: ${base})"
+done
 docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-api:local -f ../backend/Dockerfile.api ../backend
 docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-consumer:local -f ../backend/Dockerfile.consumer ../backend
 docker buildx build --platform "${PLATFORM}" --load -t panda-wiki-admin:local -f ../web/admin/Dockerfile.local ../web/admin
