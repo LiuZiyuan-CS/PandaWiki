@@ -266,6 +266,7 @@ const BatchActionBar = (props: BatchActionBarProps) => {
                 type: 2, // 文件类型
                 kb_id,
                 nav_id: nav_id || '',
+                source_object_key: item.sourceObjectKey,
               });
 
               setData(prev =>

@@ -24,6 +24,7 @@ import {
   IconGengduo,
   IconMuluzhankai,
 } from '@panda-wiki/icons';
+import axios from 'axios';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -50,6 +51,38 @@ const Header = ({
   const navigate = useNavigate();
   const firstLoad = useRef(true);
   const [wikiUrl, setWikiUrl] = useState<string>('');
+
+  const handleDownloadSource = useCallback(async () => {
+    if (!detail.meta?.source_object_key) {
+      message.warning('该文档没有可下载的源文件');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('panda_wiki_token') || '';
+      const res = await axios.get(
+        `${window.__BASENAME__ || ''}/api/v1/node/source`,
+        {
+          params: { id: detail.id },
+          responseType: 'blob',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      let filename = detail.name || 'source';
+      const m = (res.headers['content-disposition'] || '').match(
+        /filename\*=UTF-8''(.+)/,
+      );
+      if (m) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success('下载成功');
+    } catch {
+      message.error('下载失败');
+    }
+  }, [detail]);
   const wikiUrlRef = useRef(wikiUrl);
 
   useEffect(() => {
@@ -91,13 +124,12 @@ const Header = ({
     if (host === '') return;
     const { ssl_ports = [], ports = [] } = currentKb?.access_settings || {};
 
-    if (ssl_ports) {
+    if (ssl_ports && ssl_ports.length > 0) {
       if (ssl_ports.includes(443)) setWikiUrl(`https://${host}`);
-      else if (ssl_ports.length > 0)
-        setWikiUrl(`https://${host}:${ssl_ports[0]}`);
-    } else if (ports) {
+      else setWikiUrl(`https://${host}:${ssl_ports[0]}`);
+    } else if (ports && ports.length > 0) {
       if (ports.includes(80)) setWikiUrl(`http://${host}`);
-      else if (ports.length > 0) setWikiUrl(`http://${host}:${ports[0]}`);
+      else setWikiUrl(`http://${host}:${ports[0]}`);
     }
   }, [currentKb]);
 
@@ -396,6 +428,38 @@ const Header = ({
                 ),
                 onClick: () => handleExport('md'),
               },
+              ...(detail.meta?.source_object_key
+                ? [
+                    {
+                      key: 'source',
+                      label: (
+                        <Stack
+                          direction={'row'}
+                          alignItems={'center'}
+                          gap={1}
+                          sx={{
+                            fontSize: 14,
+                            px: 2,
+                            lineHeight: '40px',
+                            height: 40,
+                            width: 140,
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                            ':hover': {
+                              bgcolor: addOpacityToColor(
+                                theme.palette.primary.main,
+                                0.1,
+                              ),
+                            },
+                          }}
+                        >
+                          下载源文件
+                        </Stack>
+                      ),
+                      onClick: handleDownloadSource,
+                    },
+                  ]
+                : []),
             ]}
             context={
               <Button

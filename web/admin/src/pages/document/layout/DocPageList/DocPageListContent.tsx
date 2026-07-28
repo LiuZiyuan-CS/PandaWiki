@@ -35,6 +35,7 @@ export interface DocPageListContentProps {
   onMoveOpen: () => void;
   onDeleteOpen: () => void;
   onPropertiesOpen: () => void;
+  onDownloadSource: () => void;
   onBatchClose: () => void;
   setOpraData: (data: { id?: string }[]) => void;
   dragTreeRef: React.RefObject<DragTreeHandle | null>;
@@ -68,6 +69,7 @@ const DocPageListContent = ({
   onMoveOpen,
   onDeleteOpen,
   onPropertiesOpen,
+  onDownloadSource,
   onBatchClose,
   setOpraData,
   dragTreeRef,
@@ -146,6 +148,14 @@ const DocPageListContent = ({
                     onClick={onDeleteOpen}
                   >
                     批量删除
+                  </Button>
+                  <Button
+                    size='small'
+                    color='primary'
+                    sx={{ minWidth: 0, p: 0, lineHeight: 1 }}
+                    onClick={onDownloadSource}
+                  >
+                    下载源文件
                   </Button>
                   <Button
                     size='small'

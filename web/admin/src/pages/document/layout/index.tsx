@@ -207,13 +207,12 @@ const Content = () => {
     if (host === '') return;
     const { ssl_ports = [], ports = [] } = currentKb?.access_settings || {};
 
-    if (ssl_ports) {
+    if (ssl_ports && ssl_ports.length > 0) {
       if (ssl_ports.includes(443)) setWikiUrl(`https://${host}`);
-      else if (ssl_ports.length > 0)
-        setWikiUrl(`https://${host}:${ssl_ports[0]}`);
-    } else if (ports) {
+      else setWikiUrl(`https://${host}:${ssl_ports[0]}`);
+    } else if (ports && ports.length > 0) {
       if (ports.includes(80)) setWikiUrl(`http://${host}`);
-      else if (ports.length > 0) setWikiUrl(`http://${host}:${ports[0]}`);
+      else setWikiUrl(`http://${host}:${ports[0]}`);
     }
   }, [currentKb]);
 

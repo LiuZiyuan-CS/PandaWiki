@@ -33,6 +33,7 @@ export interface ListDataItem {
   file_type?: string;
   file?: boolean;
   fileData?: File;
+  sourceObjectKey?: string;
   progress?: number;
 
   open?: boolean;

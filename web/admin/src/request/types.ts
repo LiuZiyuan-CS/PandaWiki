@@ -775,6 +775,7 @@ export interface DomainCreateNodeReq {
   nav_id: string;
   parent_id?: string;
   position?: number;
+  source_object_key?: string;
   summary?: string;
   type: 1 | 2;
 }
@@ -1027,6 +1028,7 @@ export interface DomainNodeGroupDetail {
 
 export interface DomainNodeListItemResp {
   content_type?: string;
+  source_object_key?: string;
   created_at?: string;
   creator?: string;
   creator_id?: string;
@@ -1051,6 +1053,7 @@ export interface DomainNodeMeta {
   content_type?: string;
   emoji?: string;
   summary?: string;
+  source_object_key?: string;
 }
 
 export interface DomainNodePermissions {

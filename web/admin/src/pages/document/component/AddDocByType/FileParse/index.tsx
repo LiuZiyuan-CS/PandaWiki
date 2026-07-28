@@ -66,7 +66,11 @@ const FileParse = ({ type, parent_id, setData }: FileParseProps) => {
           kb_id,
           filename,
         });
-        const flattenedData = flattenCrawlerParseResponse(parseResp, parent_id);
+        const flattenedData = flattenCrawlerParseResponse(
+          parseResp,
+          parent_id,
+          { sourceObjectKey: key },
+        );
         setData(prev => [...prev, ...flattenedData]);
       }
     },

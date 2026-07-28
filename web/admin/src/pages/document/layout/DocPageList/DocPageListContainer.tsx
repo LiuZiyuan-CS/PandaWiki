@@ -8,6 +8,7 @@ import {
 import { useAppSelector } from '@/store';
 import { collapseAllFolders, convertToTree } from '@/utils/drag';
 import { message } from '@ctzhian/ui';
+import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DocListModals from './DocListModals';
 import DocPageListContent from './DocPageListContent';
@@ -126,6 +127,39 @@ const DocPageListContainer = ({
     [list, wikiUrl],
   );
 
+  const handleBatchDownloadSource = useCallback(async () => {
+    if (selected.length === 0) {
+      message.warning('请先选择文档');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('panda_wiki_token') || '';
+      const res = await axios.post(
+        `${window.__BASENAME__ || ''}/api/v1/node/batch_source`,
+        { kb_id, ids: selected },
+        {
+          responseType: 'blob',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '源文件.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success('下载成功');
+    } catch (e: any) {
+      // 后端可能返回 JSON 错误（如选中的文档都没有源文件）， responseType=blob 时需手动解析
+      try {
+        const text = await e?.response?.data?.text?.();
+        message.error(text ? JSON.parse(text)?.message : '下载失败');
+      } catch {
+        message.error('下载失败');
+      }
+    }
+  }, [selected, kb_id]);
+
   const menu = useDocTreeMenu({
     handleUrl,
     handleDelete,
@@ -212,6 +246,7 @@ const DocPageListContainer = ({
         updateLocalData={updateLocalData}
         onSelectChange={setSelected}
         onBatchOpen={() => setBatchOpen(true)}
+        onDownloadSource={handleBatchDownloadSource}
         onMoreSummaryOpen={() => {
           setMoreSummaryOpen(true);
           setOpraDataFromSelected();

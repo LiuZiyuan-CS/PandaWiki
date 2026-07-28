@@ -1,15 +1,20 @@
 package usecase
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/minio/minio-go/v7"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 
@@ -82,6 +87,97 @@ func (u *NodeUsecase) Create(ctx context.Context, req *domain.CreateNodeReq, use
 		return "", err
 	}
 	return nodeID, nil
+}
+
+// DownloadSource 下载节点对应的原始上传文件（docx/pdf 等源文件）。
+// 返回文件流和建议文件名（优先用上传时的原始文件名）。
+func (u *NodeUsecase) DownloadSource(ctx context.Context, nodeID string) (io.ReadCloser, string, error) {
+	node, err := u.nodeRepo.GetNodeByID(ctx, nodeID)
+	if err != nil {
+		return nil, "", fmt.Errorf("get node failed: %w", err)
+	}
+	if node == nil || node.Meta.SourceObjectKey == "" {
+		return nil, "", errors.New("该文档没有可下载的源文件")
+	}
+	key := node.Meta.SourceObjectKey
+	obj, err := u.s3Client.GetObject(ctx, domain.Bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("get source object failed: %w", err)
+	}
+
+	// 文件名：优先用 minio 元数据里的原始上传文件名；其次节点名 + 扩展名
+	filename := node.Name
+	if ext := strings.ToLower(filepath.Ext(key)); ext != "" && !strings.HasSuffix(strings.ToLower(filename), ext) {
+		filename += ext
+	}
+	if st, err := obj.Stat(); err == nil {
+		for k, v := range st.UserMetadata {
+			if strings.EqualFold(k, "originalname") && v != "" {
+				filename = v
+				break
+			}
+		}
+	}
+	return obj, filename, nil
+}
+
+// GetDownloadableNodes 从给定节点中筛选出存在源文件的节点（按入参顺序保留）。
+func (u *NodeUsecase) GetDownloadableNodes(ctx context.Context, nodeIDs []string) ([]*domain.Node, error) {
+	nodes, err := u.nodeRepo.GetNodesByIDs(ctx, nodeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get nodes failed: %w", err)
+	}
+	var result []*domain.Node
+	for _, id := range nodeIDs {
+		if n, ok := nodes[id]; ok && n != nil && n.Meta.SourceObjectKey != "" {
+			result = append(result, n)
+		}
+	}
+	return result, nil
+}
+
+// WriteSourceZip 把多个节点的源文件打包成 zip 流式写入 w，返回成功打包的文件数。
+func (u *NodeUsecase) WriteSourceZip(ctx context.Context, nodes []*domain.Node, w io.Writer) (int, error) {
+	zipw := zip.NewWriter(w)
+	defer zipw.Close()
+	used := map[string]int{}
+	count := 0
+	for _, node := range nodes {
+		obj, err := u.s3Client.GetObject(ctx, domain.Bucket, node.Meta.SourceObjectKey, minio.GetObjectOptions{})
+		if err != nil {
+			u.logger.Error("batch download: get object failed", log.String("key", node.Meta.SourceObjectKey), log.Error(err))
+			continue
+		}
+		filename := node.Name
+		if ext := strings.ToLower(filepath.Ext(node.Meta.SourceObjectKey)); ext != "" && !strings.HasSuffix(strings.ToLower(filename), ext) {
+			filename += ext
+		}
+		if st, err := obj.Stat(); err == nil {
+			for k, v := range st.UserMetadata {
+				if strings.EqualFold(k, "originalname") && v != "" {
+					filename = v
+					break
+				}
+			}
+		}
+		if n, exists := used[filename]; exists {
+			used[filename] = n + 1
+			ext := filepath.Ext(filename)
+			filename = fmt.Sprintf("%s(%d)%s", strings.TrimSuffix(filename, ext), n+1, ext)
+		} else {
+			used[filename] = 1
+		}
+		fw, err := zipw.Create(filename)
+		if err != nil {
+			obj.Close()
+			continue
+		}
+		if _, err := io.Copy(fw, obj); err == nil {
+			count++
+		}
+		obj.Close()
+	}
+	return count, nil
 }
 
 func (u *NodeUsecase) GetList(ctx context.Context, req *domain.GetNodeListReq) ([]*domain.NodeListItemResp, error) {
@@ -586,15 +682,8 @@ func (u *NodeUsecase) GetNodePermissionsByID(ctx context.Context, id, kbID strin
 	return resp, err
 }
 
+// ValidateNodePermissionsEdit 开发版：放开文档按用户组细粒度权限（原需 Business/Enterprise）。
 func (u *NodeUsecase) ValidateNodePermissionsEdit(req v1.NodePermissionEditReq, edition consts.LicenseEdition) error {
-	if !slices.Contains([]consts.LicenseEdition{consts.LicenseEditionBusiness, consts.LicenseEditionEnterprise}, edition) {
-		if req.Permissions.Answerable == consts.NodeAccessPermPartial || req.Permissions.Visitable == consts.NodeAccessPermPartial || req.Permissions.Visible == consts.NodeAccessPermPartial {
-			return domain.ErrPermissionDenied
-		}
-		if req.AnswerableGroups != nil || req.VisitableGroups != nil || req.VisibleGroups != nil {
-			return domain.ErrPermissionDenied
-		}
-	}
 	return nil
 }
 

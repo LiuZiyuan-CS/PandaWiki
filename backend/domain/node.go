@@ -121,9 +121,10 @@ type NodeGroupDetail struct {
 }
 
 type NodeMeta struct {
-	Summary     string `json:"summary"`
-	Emoji       string `json:"emoji"`
-	ContentType string `json:"content_type"`
+	Summary         string `json:"summary"`
+	Emoji           string `json:"emoji"`
+	ContentType     string `json:"content_type"`
+	SourceObjectKey string `json:"source_object_key,omitempty"` // 原始上传文件在 minio 的 object key，用于「下载源文件」
 }
 
 func (d *NodeMeta) Value() (driver.Value, error) {
@@ -139,17 +140,18 @@ func (d *NodeMeta) Scan(value any) error {
 }
 
 type CreateNodeReq struct {
-	KBID        string   `json:"kb_id" validate:"required"`
-	NavId       string   `json:"nav_id" validate:"required"`
-	ParentID    string   `json:"parent_id"`
-	Type        NodeType `json:"type" validate:"required,oneof=1 2"`
-	Name        string   `json:"name" validate:"required"`
-	Content     string   `json:"content"`
-	Emoji       string   `json:"emoji"`
-	Summary     *string  `json:"summary"`
-	ContentType *string  `json:"content_type"`
-	MaxNode     int      `json:"-"`
-	Position    *float64 `json:"position"`
+	KBID            string   `json:"kb_id" validate:"required"`
+	NavId           string   `json:"nav_id" validate:"required"`
+	ParentID        string   `json:"parent_id"`
+	Type            NodeType `json:"type" validate:"required,oneof=1 2"`
+	Name            string   `json:"name" validate:"required"`
+	Content         string   `json:"content"`
+	Emoji           string   `json:"emoji"`
+	Summary         *string  `json:"summary"`
+	ContentType     *string  `json:"content_type"`
+	SourceObjectKey string   `json:"source_object_key"` // 上传文件创建时，原始文件在 minio 的 key（用于下载源文件）
+	MaxNode         int      `json:"-"`
+	Position        *float64 `json:"position"`
 }
 
 type GetNodeListReq struct {
@@ -159,25 +161,34 @@ type GetNodeListReq struct {
 }
 
 type NodeListItemResp struct {
-	ID          string          `json:"id"`
-	NavId       string          `json:"nav_id"`
-	Type        NodeType        `json:"type"`
-	Status      NodeStatus      `json:"status"`
-	RagInfo     RagInfo         `json:"rag_info"`
-	Name        string          `json:"name"`
-	Summary     string          `json:"summary"`
-	Emoji       string          `json:"emoji"`
-	ContentType string          `json:"content_type"`
-	Position    float64         `json:"position"`
-	ParentID    string          `json:"parent_id"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-	CreatorId   string          `json:"creator_id"`
-	EditorId    string          `json:"editor_id"`
-	Creator     string          `json:"creator"`
-	Editor      string          `json:"editor"`
-	PublisherId string          `json:"publisher_id" gorm:"-"`
-	Permissions NodePermissions `json:"permissions" gorm:"type:jsonb"`
+	ID              string          `json:"id"`
+	NavId           string          `json:"nav_id"`
+	Type            NodeType        `json:"type"`
+	Status          NodeStatus      `json:"status"`
+	RagInfo         RagInfo         `json:"rag_info"`
+	Name            string          `json:"name"`
+	Summary         string          `json:"summary"`
+	Emoji           string          `json:"emoji"`
+	ContentType     string          `json:"content_type"`
+	Position        float64         `json:"position"`
+	ParentID        string          `json:"parent_id"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	CreatorId       string          `json:"creator_id"`
+	EditorId        string          `json:"editor_id"`
+	Creator         string          `json:"creator"`
+	Editor          string          `json:"editor"`
+	PublisherId     string          `json:"publisher_id" gorm:"-"`
+	Permissions     NodePermissions `json:"permissions" gorm:"type:jsonb"`
+	SourceObjectKey string          `json:"source_object_key"`
+}
+
+// BatchDownloadSourceReq 批量下载节点源文件
+//
+// 选中的节点中只有存在源文件的会被打包，没有源文件的自动跳过。
+type BatchDownloadSourceReq struct {
+	KBID string   `json:"kb_id" validate:"required"`
+	IDs  []string `json:"ids" validate:"required"`
 }
 
 type NodeContentChunk struct {

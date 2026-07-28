@@ -195,6 +195,7 @@ export interface ITreeItem {
   emoji?: string;
   parentId?: string;
   content_type?: string;
+  source_object_key?: string;
   summary?: string;
   rag_status?: ConstsNodeRagInfoStatus;
   rag_message?: string;

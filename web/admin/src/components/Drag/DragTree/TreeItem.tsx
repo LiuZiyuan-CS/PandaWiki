@@ -40,6 +40,26 @@ import React, {
 } from 'react';
 import TreeMenu from './TreeMenu';
 
+// 源文档格式徽章：从 source_object_key 推断扩展名与配色（docx 蓝 / pdf 红 / pptx 橙 / xlsx 绿）
+const SOURCE_FILE_COLORS: Record<string, string> = {
+  DOC: '#2b579a',
+  DOCX: '#2b579a',
+  PDF: '#d93025',
+  PPT: '#d35200',
+  PPTX: '#d35200',
+  XLS: '#107c41',
+  XLSX: '#107c41',
+  TXT: '#6b7280',
+  EPUB: '#7c3aed',
+};
+const getSourceFileExt = (key?: string): string => {
+  if (!key) return '';
+  const m = key.toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1].toUpperCase() : '';
+};
+const getSourceFileColor = (key?: string): string =>
+  SOURCE_FILE_COLORS[getSourceFileExt(key)] || '#6b7280';
+
 const StyledTag = styled('div')<{ color: keyof Theme['palette'] }>(
   ({ theme, color }) => ({
     color: (theme.palette[color] as PaletteColor).main,
@@ -529,6 +549,28 @@ const TreeItem = React.forwardRef<
                             }}
                           >
                             MD
+                          </Box>
+                        )}
+                        {getSourceFileExt(item.source_object_key) && (
+                          <Box
+                            component={'span'}
+                            title='含原始上传文件，可在编辑器「导出」中下载'
+                            sx={{
+                              fontSize: 10,
+                              color: 'white',
+                              background: getSourceFileColor(
+                                item.source_object_key,
+                              ),
+                              px: 1,
+                              ml: 0.5,
+                              fontWeight: '500',
+                              borderRadius: '4px',
+                              height: '14px',
+                              lineHeight: '14px',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {getSourceFileExt(item.source_object_key)}
                           </Box>
                         )}
                       </Box>

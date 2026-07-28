@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 
 	"github.com/labstack/echo/v4"
 
@@ -45,6 +48,7 @@ func NewNodeHandler(
 
 	group.POST("", h.CreateNode)
 	group.GET("/detail", h.GetNodeDetail)
+	group.GET("/source", h.DownloadSource)
 	group.PUT("/detail", h.UpdateNodeDetail)
 	group.POST("/summary", h.SummaryNode)
 	group.POST("/summary/stream", h.SummaryNodeStream)
@@ -53,6 +57,7 @@ func NewNodeHandler(
 	group.POST("/move", h.MoveNode)
 	group.POST("/move/nav", h.NodeMoveNav)
 	group.POST("/batch_move", h.BatchMoveNode)
+	group.POST("/batch_source", h.BatchDownloadSource)
 
 	group.GET("/recommend_nodes", h.RecommendNodes)
 	group.POST("/restudy", h.NodeRestudy)
@@ -62,6 +67,76 @@ func NewNodeHandler(
 	group.PATCH("/permission/edit", h.NodePermissionEdit)
 
 	return h
+}
+
+// BatchDownloadSource 批量下载节点的原始上传文件（打包 zip）
+//
+//	@Summary		Batch download source files
+//	@Description	批量下载节点源文件，打包成 zip
+//	@Tags			node
+//	@Accept			json
+//	@Produce		octet-stream
+//	@Security		bearerAuth
+//	@Param			body	body		domain.BatchDownloadSourceReq	true	"Batch Download Request"
+//	@Success		200	{file}	file
+//	@Router			/api/v1/node/batch_source [post]
+func (h *NodeHandler) BatchDownloadSource(c echo.Context) error {
+	req := &domain.BatchDownloadSourceReq{}
+	if err := c.Bind(req); err != nil {
+		return h.NewResponseWithError(c, "request body is invalid", err)
+	}
+	if err := c.Validate(req); err != nil {
+		return h.NewResponseWithError(c, "validate request body failed", err)
+	}
+	ctx := c.Request().Context()
+	nodes, err := h.usecase.GetDownloadableNodes(ctx, req.IDs)
+	if err != nil {
+		return h.NewResponseWithError(c, "batch download failed", err)
+	}
+	if len(nodes) == 0 {
+		return h.NewResponseWithError(c, "选中的文档没有可下载的源文件", nil)
+	}
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape("源文件.zip")))
+	c.Response().Header().Set("Content-Type", "application/zip")
+	c.Response().WriteHeader(http.StatusOK)
+	count, err := h.usecase.WriteSourceZip(ctx, nodes, c.Response())
+	if err != nil {
+		h.logger.Error("batch download source failed", log.Error(err))
+	}
+	h.logger.Info("batch download source done", log.Int("count", count), log.Int("selected", len(req.IDs)))
+	return nil
+}
+
+// CreateNode
+//
+//	@Summary		Create Node
+//
+//	@Summary		Download source file
+//	@Description	下载节点对应的原始上传文件
+//	@Tags			node
+//	@Produce		octet-stream
+//	@Security		bearerAuth
+//	@Param			id	query		string	true	"Node ID"
+//	@Success		200	{file}	file
+//	@Router			/api/v1/node/source [get]
+func (h *NodeHandler) DownloadSource(c echo.Context) error {
+	id := c.QueryParam("id")
+	if id == "" {
+		return h.NewResponseWithError(c, "id is required", nil)
+	}
+	reader, filename, err := h.usecase.DownloadSource(c.Request().Context(), id)
+	if err != nil {
+		return h.NewResponseWithError(c, "download source failed", err)
+	}
+	defer reader.Close()
+	// RFC 5987 编码，支持中文文件名
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(filename)))
+	c.Response().Header().Set("Content-Type", "application/octet-stream")
+	c.Response().WriteHeader(http.StatusOK)
+	if _, err := io.Copy(c.Response(), reader); err != nil {
+		h.logger.Error("stream source file failed", log.Error(err))
+	}
+	return nil
 }
 
 // CreateNode
